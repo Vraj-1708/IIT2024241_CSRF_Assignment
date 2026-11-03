@@ -1,0 +1,17 @@
+const express = require('express');
+const session = require('express-session');
+const crypto = require('crypto');
+const app = express();
+app.use(express.urlencoded({extended:false}));
+app.use(session({name:'csrf_demo_session',secret:'demo-only-change-this-secret',resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:'lax',secure:false}}));
+const login=(req,res,next)=>req.session.user?next():res.redirect('/login');
+const validEmail = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+app.get('/',(req,res)=>res.redirect('/login'));
+app.get('/login',(req,res)=>res.send(`<!doctype html><html><head><link rel="stylesheet" href="/style.css"></head><body><main><h1>CSRF Security Demonstration</h1><form method="post" action="/login"><label>Username <input name="username" value="student" required></label><label>Password <input name="password" type="password" value="csrf-demo" required></label><button>Sign in</button></form></main></body></html>`));
+app.post('/login',(req,res)=>{if(req.body.username!=='student'||req.body.password!=='csrf-demo')return res.status(401).send('Invalid demo credentials');req.session.user='student';req.session.email='student@example.test';req.session.mitigation=false;req.session.token=crypto.randomBytes(32).toString('hex');res.redirect('/dashboard');});
+app.get('/dashboard',login,(req,res)=>res.send(`<!doctype html><html><head><link rel="stylesheet" href="/style.css"></head><body><main><h1>Account dashboard</h1><p>Signed in as <b>student</b></p><section><h2>Current email</h2><p class="email">${req.session.email}</p><h2>GET endpoint under test</h2><p>Mitigation status: <b>${req.session.mitigation?'ENABLED':'DISABLED'}</b></p><form method="post" action="/toggle"><button>${req.session.mitigation?'Disable':'Enable'} CSRF mitigation</button></form></section><section><h2>Protected email update (POST)</h2><form method="post" action="/secure/change-email"><input type="hidden" name="token" value="${req.session.token}"><label>New email <input type="email" name="email" required></label><button>Update email securely</button></form></section></main></body></html>`));
+app.post('/toggle',login,(req,res)=>{req.session.mitigation=!req.session.mitigation;res.redirect('/dashboard');});
+app.get('/vulnerable/change-email',login,(req,res)=>{if(req.session.mitigation)return res.status(403).send('<h1>403 Forbidden</h1><p>CSRF mitigation blocked this forged GET request.</p>');const email=String(req.query.email||'');if(!validEmail(email))return res.status(400).send('Invalid email');req.session.email=email;res.send('Vulnerable GET action executed. <a href="/dashboard">Dashboard</a>');});
+app.post('/secure/change-email',login,(req,res)=>{const a=Buffer.from(String(req.body.token||''));const b=Buffer.from(String(req.session.token||''));if(a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(403).send('403 Forbidden: invalid CSRF token');const email=String(req.body.email||'');if(!validEmail(email))return res.status(400).send('Invalid email');req.session.email=email;res.redirect('/dashboard');});
+app.use(express.static('public'));
+app.listen(5000,'127.0.0.1',()=>console.log('Main app: http://127.0.0.1:5000/login'));
